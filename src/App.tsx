@@ -29,6 +29,10 @@ type SavedSubject = {
 type AppSettings = {
   removeAfter: boolean;
   soundEnabled: boolean;
+  voiceEnabled: boolean;
+  voiceRate: number;
+  voicePitch: number;
+  selectedVoice: string;
   suspenseMs: number;
   maxHistory: number;
 };
@@ -41,6 +45,10 @@ const SETTINGS_KEY = "stocatz_settings_v1";
 const DEFAULT_SETTINGS: AppSettings = {
   removeAfter: true,
   soundEnabled: true,
+  voiceEnabled: true,
+  voiceRate: 0.78,
+  voicePitch: 0.68,
+  selectedVoice: "",
   suspenseMs: 5000,
   maxHistory: 12,
 };
@@ -83,6 +91,122 @@ function loadSettings(): AppSettings {
   }
 }
 
+
+function getProfessorVoice(): SpeechSynthesisVoice | null {
+  if (!("speechSynthesis" in window)) return null;
+
+  const voices = window.speechSynthesis.getVoices();
+  const italianVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("it"));
+  const preferredNames = ["paolo", "cosimo", "luca", "italiano", "italian"];
+
+  return (
+    italianVoices.find((voice) => preferredNames.some((name) => voice.name.toLowerCase().includes(name))) ??
+    italianVoices[0] ??
+    voices[0] ??
+    null
+  );
+}
+
+function playQuizIntro() {
+  try {
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = new AudioContextConstructor();
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    master.gain.exponentialRampToValueAtTime(0.2, audioContext.currentTime + 0.02);
+    master.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.42);
+    master.connect(audioContext.destination);
+
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const start = audioContext.currentTime + index * 0.12;
+      const end = start + 0.105;
+
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.35, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+      oscillator.connect(gain);
+      gain.connect(master);
+      oscillator.start(start);
+      oscillator.stop(end + 0.03);
+    });
+
+    window.setTimeout(() => void audioContext.close().catch(() => undefined), 800);
+  } catch {
+    // Audio non disponibile: l'app continua senza suono quiz.
+  }
+}
+
+
+function playCountdownTone(step: number) {
+  try {
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = new AudioContextConstructor();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const frequencies = [620, 740, 880];
+    const frequency = frequencies[Math.max(0, Math.min(2, step - 1))];
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.12, audioContext.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.36);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.38);
+    window.setTimeout(() => void audioContext.close().catch(() => undefined), 650);
+  } catch {
+    // Suono non disponibile.
+  }
+}
+
+function playRevealHit() {
+  try {
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    const audioContext = new AudioContextConstructor();
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(0.0001, audioContext.currentTime);
+    master.gain.exponentialRampToValueAtTime(0.26, audioContext.currentTime + 0.02);
+    master.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.72);
+    master.connect(audioContext.destination);
+
+    [1046.5, 1318.5, 1568].forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const start = audioContext.currentTime + index * 0.08;
+      const end = start + 0.18;
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.28, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain);
+      gain.connect(master);
+      oscillator.start(start);
+      oscillator.stop(end + 0.04);
+    });
+
+    window.setTimeout(() => void audioContext.close().catch(() => undefined), 1000);
+  } catch {
+    // Suono non disponibile.
+  }
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("menu");
   const [setupOpen, setSetupOpen] = useState(false);
@@ -97,6 +221,8 @@ export default function App() {
   const [reelTopics, setReelTopics] = useState<string[]>(["Argomento"]);
   const [savedSubjects, setSavedSubjects] = useState<SavedSubject[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceCue, setVoiceCue] = useState<string | null>(null);
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [flash, setFlash] = useState(false);
@@ -166,6 +292,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!("speechSynthesis" in window)) return;
+
+    const loadVoices = () => {
+      setVoices(window.speechSynthesis.getVoices());
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem(SUBJECTS_KEY, JSON.stringify(savedSubjects));
   }, [savedSubjects]);
 
@@ -196,6 +337,56 @@ export default function App() {
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
   };
 
+
+  const speakResult = (topic: string) => {
+    if (!settings.voiceEnabled || !("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const chosenVoice = voices.find((voice) => voice.name === settings.selectedVoice);
+    const professorVoice = chosenVoice ?? getProfessorVoice();
+    const utterance = new SpeechSynthesisUtterance(`Argomento estratto. ${topic}.`);
+
+    utterance.lang = professorVoice?.lang ?? "it-IT";
+    if (professorVoice) utterance.voice = professorVoice;
+    utterance.rate = settings.voiceRate;
+    utterance.pitch = settings.voicePitch;
+    utterance.volume = 1;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startQuizVoiceSequence = (winner: string) => {
+    if (!settings.voiceEnabled) return;
+
+    const sequence = [
+      { delay: 0, cue: "3", tone: 1 },
+      { delay: 680, cue: "2", tone: 2 },
+      { delay: 1360, cue: "1", tone: 3 },
+      { delay: 2040, cue: "STOCATZ", reveal: true },
+      { delay: 2800, cue: "Pausa..." },
+      { delay: 3400, cue: null, speak: true },
+    ];
+
+    sequence.forEach((item) => {
+      const timer = window.setTimeout(() => {
+        setVoiceCue(item.cue);
+        if (settings.soundEnabled && "tone" in item && item.tone) playCountdownTone(item.tone);
+        if (settings.soundEnabled && "reveal" in item && item.reveal) {
+          playRevealHit();
+          playQuizIntro();
+        }
+        if ("speak" in item && item.speak) {
+          speakResult(winner);
+          const clearCueTimer = window.setTimeout(() => setVoiceCue(null), 900);
+          timersRef.current.push(clearCueTimer);
+        }
+      }, item.delay);
+
+      timersRef.current.push(timer);
+    });
+  };
+
   const applyTopics = (name: string, nextTopics: string[]) => {
     const clean = nextTopics.map((topic) => topic.trim()).filter(Boolean);
     clearTimers();
@@ -211,20 +402,14 @@ export default function App() {
     setIsSuspense(false);
     setEnergyBurst(false);
     setFocusDarken(false);
+    setVoiceCue(null);
     audioRef.current?.pause();
+    window.speechSynthesis?.cancel();
     if (audioRef.current) audioRef.current.currentTime = 0;
     if (reelRef.current) {
       reelRef.current.style.transition = "none";
       reelRef.current.style.transform = "translate3d(0,0,0)";
     }
-  };
-
-  const openSetup = () => {
-    setSetupOpen(true);
-    setSetupStep("count");
-    setTopicCountInput(String(Math.min(Math.max(topics.length || DEFAULT_TOPIC_COUNT, 1), MAX_TOPICS)));
-    setDraftTopics(createTopics(Math.min(Math.max(topics.length || DEFAULT_TOPIC_COUNT, 1), MAX_TOPICS), topics));
-    setDraftSubjectName(subjectName === "Materia libera" ? "" : subjectName);
   };
 
   const openNewSubjectSetup = () => {
@@ -293,6 +478,7 @@ export default function App() {
     setIsSuspense(false);
     setEnergyBurst(false);
     setFocusDarken(false);
+    setVoiceCue(null);
     setLastWinner(null);
 
     if (settings.soundEnabled && audioRef.current) {
@@ -369,6 +555,8 @@ export default function App() {
         navigator.vibrate?.([80, 40, 120]);
       }
 
+      startQuizVoiceSequence(winner);
+
       const flashTimer = window.setTimeout(() => setFlash(false), 400);
       const burstTimer = window.setTimeout(() => setEnergyBurst(false), 650);
       const darkenTimer = window.setTimeout(() => setFocusDarken(false), 520);
@@ -444,19 +632,29 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="game-heading">
-                <div>
+              <div className="game-heading game-heading-centered">
+                <div className="subject-heading-block">
                   <span className="setup-kicker"><Sparkles size={15} /> Materia attiva</span>
                   <h2>{subjectName}</h2>
                   <p>{topics.length} argomenti caricati</p>
                 </div>
-                <button className="secondary-button" onClick={openSetup} type="button"><Plus size={18} /> Scegli argomenti</button>
               </div>
 
               <div className="card-content">
                 <div className="reel-viewport">
                   <motion.div animate={focusDarken ? { opacity: [0, 0.42, 0.24] } : { opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} className="focus-overlay" />
                   <motion.div animate={energyBurst ? { opacity: [0, 0.9, 0], scale: [0.7, 1.2, 1.55] } : { opacity: 0, scale: 0.8 }} transition={{ duration: 0.65, ease: "easeOut" }} className="energy-burst" />
+                  {voiceCue && (
+                    <motion.div
+                      key={voiceCue}
+                      initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className={`voice-cue ${voiceCue === "Pausa..." ? "voice-cue-small" : ""}`}
+                    >
+                      {voiceCue}
+                    </motion.div>
+                  )}
                   <motion.div animate={isSpinning ? { opacity: [0.28, 0.6, 0.28] } : energyBurst ? { opacity: [0.5, 1, 0.4] } : { opacity: 0.35 }} transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.9, ease: "easeInOut" }} className="highlight-band" />
                   <motion.div animate={isSuspense ? { opacity: [0.3, 1, 0.3] } : { opacity: 0.25 }} transition={{ repeat: isSuspense ? Infinity : 0, duration: 0.16, ease: "linear" }} className="center-line" />
                   <div className="top-fade" />
@@ -533,6 +731,9 @@ export default function App() {
               <div className="settings-grid">
                 <SettingSwitch title="Escludi argomenti già usciti" subtitle="Evita ripetizioni fino al reset." value={settings.removeAfter} onChange={() => setSettings((prev) => ({ ...prev, removeAfter: !prev.removeAfter }))} />
                 <SettingSwitch title="Audio slot" subtitle="Attiva o disattiva il suono durante l’estrazione." value={settings.soundEnabled} onChange={() => setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))} />
+                <SettingSwitch title="Voce professore" subtitle="Pronuncia ad alta voce l’argomento estratto dopo countdown, suspense e pausa." value={settings.voiceEnabled} onChange={() => setSettings((prev) => ({ ...prev, voiceEnabled: !prev.voiceEnabled }))} />
+                <div className="setting-card"><div><span className="switch-title">Voce disponibile</span><span className="switch-subtitle">Scegli manualmente la voce del dispositivo/browser.</span></div><select className="select-input voice-select" value={settings.selectedVoice} onChange={(e) => setSettings((prev) => ({ ...prev, selectedVoice: e.target.value }))}><option value="">Automatica professore</option>{voices.map((voice) => <option key={`${voice.name}-${voice.lang}`} value={voice.name}>{voice.name} ({voice.lang})</option>)}</select></div>
+                <div className="setting-card"><div><span className="switch-title">Stile voce</span><span className="switch-subtitle">Lettura lenta, più grave e autorevole.</span></div><select className="select-input" value={`${settings.voiceRate}-${settings.voicePitch}`} onChange={(e) => { const [voiceRate, voicePitch] = e.target.value.split("-").map(Number); setSettings((prev) => ({ ...prev, voiceRate, voicePitch })); }}><option value="0.72-0.58">Professore solenne</option><option value="0.78-0.68">Quiz TV lento</option><option value="0.86-0.74">Professore standard</option><option value="1-0.9">Chiara naturale</option></select></div>
                 <div className="setting-card"><div><span className="switch-title">Durata animazione</span><span className="switch-subtitle">Regola la suspense della roulette.</span></div><select className="select-input" value={settings.suspenseMs} onChange={(e) => setSettings((prev) => ({ ...prev, suspenseMs: Number(e.target.value) }))}><option value={3500}>Veloce</option><option value={5000}>Normale</option><option value={6500}>Lenta</option></select></div>
                 <div className="setting-card"><div><span className="switch-title">Cronologia</span><span className="switch-subtitle">Numero massimo di estrazioni visibili.</span></div><select className="select-input" value={settings.maxHistory} onChange={(e) => setSettings((prev) => ({ ...prev, maxHistory: Number(e.target.value) }))}><option value={6}>6</option><option value={12}>12</option><option value={20}>20</option></select></div>
                 <button className="setting-card action-setting" onClick={exportData} type="button"><Download size={20} /><div><span className="switch-title">Esporta materie</span><span className="switch-subtitle">Scarica un backup JSON delle materie salvate.</span></div></button>
