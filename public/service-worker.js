@@ -1,5 +1,5 @@
-const CACHE_NAME = 'stocatz-v1.2.1';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.png', '/icon-16.png', '/icon-32.png', '/icon-192.png', '/icon-512.png', '/slot.mp3'];
+const CACHE_NAME = 'stocatz-v1.4.0';
+const ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.png', '/icon-16.png', '/icon-32.png', '/icon-192.png', '/icon-512.png', '/slot.mp3', '/brand-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).catch(() => undefined));
