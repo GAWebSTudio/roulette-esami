@@ -707,7 +707,12 @@ export default function App() {
 
           {screen === "load" && (
             <div className="panel-content">
-              <div className="panel-header subject-select-header"><button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button><h2>Scegli materia</h2><button className="header-add-subject" onClick={openNewSubjectSetup} type="button" aria-label="Crea nuova materia"><Plus size={18} /> Nuova materia</button></div>
+<div className="panel-header subject-select-header">
+  <button className="ghost-button" onClick={() => setScreen("menu")} type="button">
+    <Home size={18} /> Menu
+  </button>
+  <h2>Scegli materia</h2>
+</div>
               {savedSubjects.length === 0 ? (
                 <div className="empty-state"><BookOpen size={42} /><h3>Nessuna materia salvata</h3><p>Crea la prima materia per iniziare a usare la roulette Stocatz.</p><button className="secondary-button" onClick={() => { setScreen("game"); openNewSubjectSetup(); }} type="button"><Plus size={18} /> Crea prima materia</button></div>
               ) : (
