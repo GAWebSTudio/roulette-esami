@@ -586,7 +586,7 @@ export default function App() {
 
   const renderBrand = () => (
     <div className="brand-block">
-      <div className="logo-mark" aria-hidden="true"><span>S</span></div>
+      <div className="logo-mark" aria-hidden="true"><img src="/brand-icon.png" alt="" /></div>
       <motion.h1
         initial={{ backgroundPosition: "0% 50%" }}
         animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
@@ -707,7 +707,7 @@ export default function App() {
 
           {screen === "load" && (
             <div className="panel-content">
-              <div className="panel-header"><button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button><h2>Scegli materia</h2></div>
+              <div className="panel-header subject-select-header"><button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button><h2>Scegli materia</h2><button className="header-add-subject" onClick={openNewSubjectSetup} type="button" aria-label="Crea nuova materia"><Plus size={18} /> Nuova materia</button></div>
               {savedSubjects.length === 0 ? (
                 <div className="empty-state"><BookOpen size={42} /><h3>Nessuna materia salvata</h3><p>Crea la prima materia per iniziare a usare la roulette Stocatz.</p><button className="secondary-button" onClick={() => { setScreen("game"); openNewSubjectSetup(); }} type="button"><Plus size={18} /> Crea prima materia</button></div>
               ) : (
@@ -720,6 +720,11 @@ export default function App() {
                       <button className="delete-button" onClick={() => deleteSubject(subject.id)} type="button" aria-label={`Elimina ${subject.name}`}><Trash2 size={18} /></button>
                     </article>
                   ))}
+                  <button className="add-subject-card" onClick={openNewSubjectSetup} type="button">
+                    <span className="add-subject-icon"><Plus size={22} /></span>
+                    <span>Nuova materia</span>
+                    <small>Aggiungi un nuovo set di argomenti</small>
+                  </button>
                 </div>
               )}
             </div>

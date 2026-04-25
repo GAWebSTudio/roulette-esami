@@ -136,41 +136,24 @@ button, input { font: inherit; }
 }
 
 .logo-mark {
-  position: relative;
-  width: 86px;
-  height: 86px;
+  width: 92px;
+  height: 92px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  border: 2px solid rgba(34, 211, 197, 0.75);
-  background:
-    conic-gradient(from 10deg, var(--navy-850), var(--teal-600), var(--cloud-50), var(--teal-400), var(--navy-850));
-  box-shadow: 0 0 26px rgba(34, 211, 197, 0.25);
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(11, 19, 43, 0.76);
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 197, 0.35),
+    0 18px 42px rgba(0, 0, 0, 0.34),
+    0 0 38px rgba(34, 211, 197, 0.22);
 }
-.logo-mark::before {
-  content: '';
-  position: absolute;
-  inset: 11px;
-  border-radius: inherit;
-  background: var(--navy-950);
-}
-.logo-mark::after {
-  content: '';
-  position: absolute;
-  top: -14px;
-  width: 17px;
-  height: 36px;
-  border-radius: 10px 10px 4px 4px;
-  background: linear-gradient(180deg, #ffd66b, var(--gold-400));
-  box-shadow: 0 8px 16px rgba(242, 193, 78, 0.3);
-}
-.logo-mark span {
-  position: relative;
-  z-index: 1;
-  font-size: 2.7rem;
-  line-height: 1;
-  font-weight: 900;
-  color: var(--cloud-50);
+
+.logo-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .title {
@@ -484,8 +467,7 @@ button, input { font: inherit; }
   .header-actions { align-items: flex-start; }
   .brand-pill { font-size: 0.64rem; padding-inline: 11px; letter-spacing: 0.1em; }
   .card-content { padding: 8px 16px 16px; gap: 16px; }
-  .logo-mark { width: 72px; height: 72px; }
-  .logo-mark span { font-size: 2.2rem; }
+  .logo-mark { width: 76px; height: 76px; border-radius: 20px; }
   .subtitle { letter-spacing: 0.1em; }
   .reel-viewport, .reel-item { height: 176px; }
   .highlight-band { inset-inline: 16px; height: 82px; }
@@ -796,6 +778,53 @@ button, input { font: inherit; }
   cursor: pointer;
 }
 
+
+.add-subject-card {
+  width: 100%;
+  min-height: 76px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1.5px dashed rgba(34, 211, 197, 0.62);
+  background: linear-gradient(135deg, rgba(34, 211, 197, 0.1), rgba(242, 193, 78, 0.055));
+  color: var(--teal-400);
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.add-subject-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(242, 193, 78, 0.82);
+  background: linear-gradient(135deg, rgba(34, 211, 197, 0.16), rgba(242, 193, 78, 0.11));
+  box-shadow: 0 18px 34px rgba(0, 180, 179, 0.12);
+}
+
+.add-subject-icon {
+  grid-row: 1 / span 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(34, 211, 197, 0.13);
+  border: 1px solid rgba(34, 211, 197, 0.32);
+}
+
+.add-subject-card > span:not(.add-subject-icon) {
+  color: var(--cloud-50);
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.add-subject-card small {
+  color: rgba(247, 247, 247, 0.6);
+}
+
 .empty-state {
   min-height: 330px;
   display: grid;
@@ -1013,5 +1042,54 @@ button, input { font: inherit; }
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+}
+
+/* Fix visibilità: tasto nuova materia sempre presente nella schermata Scegli materia */
+.subject-select-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+
+.subject-select-header h2 {
+  text-align: center;
+}
+
+.header-add-subject {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 193, 78, 0.55);
+  background: linear-gradient(135deg, rgba(242, 193, 78, 0.2), rgba(34, 211, 197, 0.1));
+  color: var(--gold-400);
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(242, 193, 78, 0.08);
+  transition: 160ms ease;
+}
+
+.header-add-subject:hover {
+  transform: translateY(-1px);
+  border-color: rgba(242, 193, 78, 0.9);
+  background: linear-gradient(135deg, rgba(242, 193, 78, 0.28), rgba(34, 211, 197, 0.16));
+}
+
+@media (max-width: 720px) {
+  .subject-select-header {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .subject-select-header h2 {
+    order: -1;
+  }
+
+  .header-add-subject {
+    width: 100%;
   }
 }
