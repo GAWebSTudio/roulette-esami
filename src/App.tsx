@@ -1,12 +1,52 @@
-import { useEffect, useRef, useState } from "react";
-import { motion } from 'framer-motion';
-import { Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  BookOpen,
+  ChevronRight,
+  Download,
+  Home,
+  ListChecks,
+  Play,
+  Plus,
+  RotateCcw,
+  Save,
+  Settings,
+  Sparkles,
+  Trash2,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 
-function buildRange(min: number, max: number): number[] {
-  if (!Number.isInteger(min) || !Number.isInteger(max) || min > max) return [];
-  const arr: number[] = [];
-  for (let i = min; i <= max; i += 1) arr.push(i);
-  return arr;
+type Screen = "menu" | "game" | "load" | "settings";
+type SetupStep = "count" | "topics";
+type SavedSubject = {
+  id: string;
+  name: string;
+  topics: string[];
+  createdAt: string;
+};
+type AppSettings = {
+  removeAfter: boolean;
+  soundEnabled: boolean;
+  suspenseMs: number;
+  maxHistory: number;
+};
+
+const MAX_TOPICS = 50;
+const MAX_TOPIC_LENGTH = 25;
+const DEFAULT_TOPIC_COUNT = 6;
+const SUBJECTS_KEY = "stocatz_subjects_v1";
+const SETTINGS_KEY = "stocatz_settings_v1";
+const DEFAULT_SETTINGS: AppSettings = {
+  removeAfter: true,
+  soundEnabled: true,
+  suspenseMs: 5000,
+  maxHistory: 12,
+};
+
+function createTopics(count: number, previous: string[] = []): string[] {
+  return Array.from({ length: count }, (_, index) => previous[index] ?? "");
 }
 
 function randomFromArray<T>(arr: T[]): T {
@@ -14,25 +54,56 @@ function randomFromArray<T>(arr: T[]): T {
 }
 
 function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js').catch(() => undefined);
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => undefined);
     });
   }
 }
 
+function makeId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function loadSavedSubjects(): SavedSubject[] {
+  try {
+    const raw = localStorage.getItem(SUBJECTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 export default function App() {
-  const [min, setMin] = useState('1');
-  const [max, setMax] = useState('25');
-  const [numbers, setNumbers] = useState<number[]>(buildRange(1, 25));
-  const [reelNumbers, setReelNumbers] = useState<number[]>(buildRange(1, 25));
+  const [screen, setScreen] = useState<Screen>("menu");
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupStep, setSetupStep] = useState<SetupStep>("count");
+  const [topicCountInput, setTopicCountInput] = useState(String(DEFAULT_TOPIC_COUNT));
+  const [draftTopics, setDraftTopics] = useState<string[]>(createTopics(DEFAULT_TOPIC_COUNT));
+  const [draftSubjectName, setDraftSubjectName] = useState("");
+
+  const [subjectName, setSubjectName] = useState("Materia libera");
+  const [topics, setTopics] = useState<string[]>(["Argomento"]);
+  const [availableTopics, setAvailableTopics] = useState<string[]>(["Argomento"]);
+  const [reelTopics, setReelTopics] = useState<string[]>(["Argomento"]);
+  const [savedSubjects, setSavedSubjects] = useState<SavedSubject[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+
   const [isSpinning, setIsSpinning] = useState(false);
-  const [removeAfter, setRemoveAfter] = useState(false);
   const [flash, setFlash] = useState(false);
   const [winnerDisplayIndex, setWinnerDisplayIndex] = useState<number | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [showPulse, setShowPulse] = useState(false);
-  const [lastWinner, setLastWinner] = useState<number | null>(null);
+  const [lastWinner, setLastWinner] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
   const [isSuspense, setIsSuspense] = useState(false);
   const [energyBurst, setEnergyBurst] = useState(false);
   const [focusDarken, setFocusDarken] = useState(false);
@@ -42,32 +113,50 @@ export default function App() {
   const reelRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<number[]>([]);
 
-  const ITEM_HEIGHT_FALLBACK = 176;
-  const EXTRA_LOOPS = 3;
-  const AUDIO_DURATION = 5000;
+  const ITEM_HEIGHT_FALLBACK = 192;
+  const EXTRA_LOOPS = 4;
   const OVERSHOOT = 10;
   const PRE_OVERSHOOT = 14;
   const OVERSHOOT_DURATION = 120;
   const SETTLE_DURATION = 140;
+  const SPIN_DURATION = settings.suspenseMs - OVERSHOOT_DURATION - SETTLE_DURATION;
   const SUSPENSE_DURATION = 550;
-  const SPIN_DURATION = AUDIO_DURATION - OVERSHOOT_DURATION - SETTLE_DURATION;
 
-  const getGlow = () => {
-    if (lastWinner === null) return 'rgba(255,215,0,0.6)';
-    if (lastWinner < 10) return 'rgba(255,215,0,0.9)';
-    if (lastWinner < 20) return 'rgba(255,140,0,0.9)';
-    return 'rgba(255,70,70,0.9)';
-  };
+  const parsedTopicCount = Number(topicCountInput);
+  const cleanDraftTopics = useMemo(() => draftTopics.map((topic) => topic.trim()).filter(Boolean), [draftTopics]);
+  const duplicateDraftTopics = useMemo(() => {
+    const normalized = cleanDraftTopics.map((topic) => topic.toLowerCase());
+    return normalized.some((topic, index) => normalized.indexOf(topic) !== index);
+  }, [cleanDraftTopics]);
+
+  const setupCountError = useMemo(() => {
+    if (!topicCountInput.trim()) return "Inserisci il numero di argomenti.";
+    if (!Number.isInteger(parsedTopicCount)) return "Il numero deve essere intero.";
+    if (parsedTopicCount < 1) return "Inserisci almeno 1 argomento.";
+    if (parsedTopicCount > MAX_TOPICS) return `Puoi inserire massimo ${MAX_TOPICS} argomenti.`;
+    return "";
+  }, [topicCountInput, parsedTopicCount]);
+
+  const setupTopicsError = useMemo(() => {
+    if (!draftSubjectName.trim()) return "Dai un nome alla materia.";
+    if (draftSubjectName.trim().length > MAX_TOPIC_LENGTH) return `Il nome materia può avere massimo ${MAX_TOPIC_LENGTH} caratteri.`;
+    if (draftTopics.some((topic) => topic.length > MAX_TOPIC_LENGTH)) return `Ogni argomento può avere massimo ${MAX_TOPIC_LENGTH} caratteri.`;
+    if (cleanDraftTopics.length < parsedTopicCount) return "Compila tutti gli argomenti.";
+    if (duplicateDraftTopics) return "Gli argomenti devono essere diversi tra loro.";
+    return "";
+  }, [draftSubjectName, draftTopics, cleanDraftTopics.length, parsedTopicCount, duplicateDraftTopics]);
+
+  const gameError = useMemo(() => {
+    if (!topics.length) return "Scegli o crea una materia prima di giocare.";
+    if (!availableTopics.length) return "Argomenti terminati. Premi RESET per ricominciare.";
+    return "";
+  }, [topics.length, availableTopics.length]);
 
   useEffect(() => {
-    const next = buildRange(Number(min), Number(max));
-    setNumbers(next);
-    setReelNumbers(next);
-  }, [min, max]);
-
-  useEffect(() => {
-    audioRef.current = new Audio('/slot.mp3');
     registerServiceWorker();
+    audioRef.current = new Audio("/slot.mp3");
+    setSavedSubjects(loadSavedSubjects());
+    setSettings(loadSettings());
 
     return () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -77,22 +166,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    localStorage.setItem(SUBJECTS_KEY, JSON.stringify(savedSubjects));
+  }, [savedSubjects]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    if (Number.isInteger(parsedTopicCount) && parsedTopicCount >= 1 && parsedTopicCount <= MAX_TOPICS) {
+      setDraftTopics((prev) => createTopics(parsedTopicCount, prev));
+    }
+  }, [parsedTopicCount]);
+
+  useEffect(() => {
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
     setShowPulse(false);
-
-    if (!isSpinning) {
+    if (!isSpinning && !gameError && screen === "game") {
       idleTimerRef.current = window.setTimeout(() => setShowPulse(true), 2000);
     }
-
     return () => {
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
     };
-  }, [isSpinning]);
-
-  const getItemHeight = () => {
-    const firstItem = reelRef.current?.children[0] as HTMLElement | undefined;
-    return firstItem?.clientHeight || ITEM_HEIGHT_FALLBACK;
-  };
+  }, [isSpinning, gameError, screen]);
 
   const clearTimers = () => {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -100,30 +196,118 @@ export default function App() {
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
   };
 
+  const applyTopics = (name: string, nextTopics: string[]) => {
+    const clean = nextTopics.map((topic) => topic.trim()).filter(Boolean);
+    clearTimers();
+    setSubjectName(name.trim() || "Materia libera");
+    setTopics(clean);
+    setAvailableTopics(clean);
+    setReelTopics(clean.length ? clean : ["Argomento"]);
+    setIsSpinning(false);
+    setFlash(false);
+    setWinnerDisplayIndex(null);
+    setLastWinner(null);
+    setHistory([]);
+    setIsSuspense(false);
+    setEnergyBurst(false);
+    setFocusDarken(false);
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.currentTime = 0;
+    if (reelRef.current) {
+      reelRef.current.style.transition = "none";
+      reelRef.current.style.transform = "translate3d(0,0,0)";
+    }
+  };
+
+  const openSetup = () => {
+    setSetupOpen(true);
+    setSetupStep("count");
+    setTopicCountInput(String(Math.min(Math.max(topics.length || DEFAULT_TOPIC_COUNT, 1), MAX_TOPICS)));
+    setDraftTopics(createTopics(Math.min(Math.max(topics.length || DEFAULT_TOPIC_COUNT, 1), MAX_TOPICS), topics));
+    setDraftSubjectName(subjectName === "Materia libera" ? "" : subjectName);
+  };
+
+  const openNewSubjectSetup = () => {
+    setSetupOpen(true);
+    setSetupStep("count");
+    setTopicCountInput(String(DEFAULT_TOPIC_COUNT));
+    setDraftTopics(createTopics(DEFAULT_TOPIC_COUNT));
+    setDraftSubjectName("");
+  };
+
+  const handleMenuPlay = () => {
+    if (savedSubjects.length === 0) {
+      setScreen("game");
+      openNewSubjectSetup();
+      return;
+    }
+
+    setScreen("load");
+  };
+
+  const saveSubject = () => {
+    if (setupTopicsError) return;
+    const clean = cleanDraftTopics.slice(0, parsedTopicCount);
+    const name = draftSubjectName.trim();
+    const existingIndex = savedSubjects.findIndex((subject) => subject.name.toLowerCase() === name.toLowerCase());
+    const nextSubject: SavedSubject = {
+      id: existingIndex >= 0 ? savedSubjects[existingIndex].id : makeId(),
+      name,
+      topics: clean,
+      createdAt: new Date().toISOString(),
+    };
+
+    setSavedSubjects((prev) => {
+      if (existingIndex >= 0) return prev.map((subject, index) => (index === existingIndex ? nextSubject : subject));
+      return [nextSubject, ...prev];
+    });
+    applyTopics(name, clean);
+    setSetupOpen(false);
+    setScreen("game");
+  };
+
+  const deleteSubject = (id: string) => {
+    setSavedSubjects((prev) => prev.filter((subject) => subject.id !== id));
+  };
+
+  const updateDraftTopic = (index: number, value: string) => {
+    const safeValue = value.slice(0, MAX_TOPIC_LENGTH);
+    setDraftTopics((prev) => prev.map((topic, i) => (i === index ? safeValue : topic)));
+  };
+
+  const getItemHeight = () => {
+    const firstItem = reelRef.current?.children[0] as HTMLElement | undefined;
+    return firstItem?.clientHeight || ITEM_HEIGHT_FALLBACK;
+  };
+
+  const getGlow = () => {
+    if (!lastWinner) return "rgba(34,211,197,0.55)";
+    return lastWinner.length <= 8 ? "rgba(242,193,78,0.85)" : "rgba(34,211,197,0.85)";
+  };
+
   const spin = () => {
-    if (!numbers.length || isSpinning) return;
+    if (!availableTopics.length || isSpinning || gameError) return;
 
     clearTimers();
     setShowPulse(false);
     setIsSuspense(false);
     setEnergyBurst(false);
     setFocusDarken(false);
+    setLastWinner(null);
 
-    if (soundEnabled && audioRef.current) {
+    if (settings.soundEnabled && audioRef.current) {
       audioRef.current.currentTime = 0;
       void audioRef.current.play().catch(() => undefined);
     }
 
-    const base = [...numbers];
+    const base = [...availableTopics];
     const repeated = Array.from({ length: EXTRA_LOOPS }, () => base).flat();
 
-    setReelNumbers(repeated);
+    setReelTopics(repeated);
     setIsSpinning(true);
     setFlash(false);
 
     const winner = randomFromArray(base);
-    setLastWinner(winner);
-
     const index = base.indexOf(winner);
     const finalIndex = base.length * (EXTRA_LOOPS - 1) + index;
     setWinnerDisplayIndex(finalIndex);
@@ -133,8 +317,8 @@ export default function App() {
     const reel = reelRef.current;
 
     if (reel) {
-      reel.style.transition = 'none';
-      reel.style.transform = 'translate3d(0,0,0)';
+      reel.style.transition = "none";
+      reel.style.transform = "translate3d(0,0,0)";
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -143,13 +327,10 @@ export default function App() {
         });
       });
 
-      const suspenseTimer = window.setTimeout(() => {
-        setIsSuspense(true);
-      }, Math.max(0, SPIN_DURATION - SUSPENSE_DURATION));
-
+      const suspenseTimer = window.setTimeout(() => setIsSuspense(true), Math.max(0, SPIN_DURATION - SUSPENSE_DURATION));
       const overshootTimer = window.setTimeout(() => {
         setIsSuspense(false);
-        reel.style.transition = 'transform 90ms ease-out';
+        reel.style.transition = "transform 90ms ease-out";
         reel.style.transform = `translate3d(0,-${finalY - PRE_OVERSHOOT}px,0)`;
 
         const forwardTimer = window.setTimeout(() => {
@@ -172,212 +353,236 @@ export default function App() {
 
     const finishTimer = window.setTimeout(() => {
       if (reel) {
-        reel.style.transition = 'none';
+        reel.style.transition = "none";
         reel.style.transform = `translate3d(0,-${finalY}px,0)`;
       }
 
       audioRef.current?.pause();
       setIsSpinning(false);
+      setLastWinner(winner);
       setFlash(true);
       setEnergyBurst(true);
       setFocusDarken(true);
+      setHistory((prev) => [winner, ...prev].slice(0, settings.maxHistory));
 
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate?.([80, 40, 120]);
       }
 
       const flashTimer = window.setTimeout(() => setFlash(false), 400);
       const burstTimer = window.setTimeout(() => setEnergyBurst(false), 650);
       const darkenTimer = window.setTimeout(() => setFocusDarken(false), 520);
-
       timersRef.current.push(flashTimer, burstTimer, darkenTimer);
 
-      if (removeAfter) {
-        setNumbers((prev) => prev.filter((n) => n !== winner));
+      if (settings.removeAfter) {
+        setAvailableTopics((prev) => prev.filter((topic) => topic !== winner));
       }
-    }, AUDIO_DURATION);
+    }, settings.suspenseMs);
 
     timersRef.current.push(finishTimer);
   };
 
   const reset = () => {
-    clearTimers();
-
-    const next = buildRange(Number(min), Number(max));
-    setNumbers(next);
-    setReelNumbers(next);
-    setIsSpinning(false);
-    setFlash(false);
-    setWinnerDisplayIndex(null);
-    setLastWinner(null);
-    setIsSuspense(false);
-    setEnergyBurst(false);
-    setFocusDarken(false);
-
-    audioRef.current?.pause();
-    if (audioRef.current) audioRef.current.currentTime = 0;
-
-    if (reelRef.current) {
-      reelRef.current.style.transition = 'none';
-      reelRef.current.style.transform = 'translate3d(0,0,0)';
-    }
+    applyTopics(subjectName, topics);
   };
 
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify({ savedSubjects, settings }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "stocatz-materie.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const renderBrand = () => (
+    <div className="brand-block">
+      <div className="logo-mark" aria-hidden="true"><span>S</span></div>
+      <motion.h1
+        initial={{ backgroundPosition: "0% 50%" }}
+        animate={{ backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }}
+        transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+        className="title"
+      >
+        Stocatz
+      </motion.h1>
+      <p className="subtitle">Selettore stocastico per interrogazioni ed esami</p>
+    </div>
+  );
+
   return (
-    <motion.div
-      animate={flash ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
-      className="page-shell"
-    >
-      <div className="app-frame">
-        <div className="card">
-          <div className="card-header">
-            <div className="header-actions">
-              <button
-                onClick={() => setSoundEnabled((prev) => !prev)}
-                type="button"
-                className="icon-button"
-                aria-label={soundEnabled ? 'Disattiva audio' : 'Attiva audio'}
-              >
-                {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-              </button>
-            </div>
-
-            <div className="title-wrap">
-              <motion.h1
-                initial={{ backgroundPosition: '0% 50%' }}
-                animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-                className="title"
-              >
-                🎰 Roulette per gli Esami
-              </motion.h1>
-              <p className="subtitle">Estrazione casuale delle pagine per interrogazione</p>
-            </div>
-          </div>
-
-          <div className="card-content">
-            <div className="reel-viewport">
-              <motion.div
-                animate={focusDarken ? { opacity: [0, 0.42, 0.24] } : { opacity: 0 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="focus-overlay"
-              />
-
-              <motion.div
-                animate={energyBurst ? { opacity: [0, 0.9, 0], scale: [0.7, 1.2, 1.55] } : { opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.65, ease: 'easeOut' }}
-                className="energy-burst"
-              />
-
-              <motion.div
-                animate={isSpinning ? { opacity: [0.28, 0.6, 0.28] } : energyBurst ? { opacity: [0.5, 1, 0.4] } : { opacity: 0.35 }}
-                transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.9, ease: 'easeInOut' }}
-                className="highlight-band"
-              />
-
-              <motion.div
-                animate={isSuspense ? { opacity: [0.3, 1, 0.3] } : { opacity: 0.25 }}
-                transition={{ repeat: isSuspense ? Infinity : 0, duration: 0.16, ease: 'linear' }}
-                className="center-line"
-              />
-
-              <div className="top-fade" />
-              <div className="bottom-fade" />
-
-              <div ref={reelRef} className="reel-track">
-                {reelNumbers.map((n, i) => (
-                  <div key={`${n}-${i}`} className="reel-item">
-                    <motion.span
-                      animate={
-                        flash && i === winnerDisplayIndex
-                          ? { scale: [1, 1.5, 1.2], filter: ['blur(0px)', 'blur(2px)', 'blur(0px)'] }
-                          : isSuspense && i === winnerDisplayIndex
-                            ? { opacity: [0.55, 1, 0.55], scale: [1, 1.05, 1] }
-                            : { scale: 1, opacity: 1 }
-                      }
-                      transition={{
-                        duration: isSuspense && i === winnerDisplayIndex ? 0.16 : 0.35,
-                        repeat: isSuspense && i === winnerDisplayIndex ? Infinity : 0,
-                      }}
-                      className="reel-number"
-                    >
-                      {n}
-                    </motion.span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="button-grid">
-              <motion.div
-                className="grow-wrap"
-                animate={
-                  showPulse
-                    ? {
-                        scale: [1, 1.05, 1],
-                        boxShadow: [`0 0 0px ${getGlow()}`, `0 0 30px ${getGlow()}`, `0 0 0px ${getGlow()}`],
-                      }
-                    : { scale: 1 }
-                }
-                whileHover={{ scale: 1.04, boxShadow: `0 0 26px ${getGlow()}`, filter: 'brightness(1.08)' }}
-                whileTap={{ scale: 0.98 }}
-                transition={showPulse ? { repeat: Infinity, duration: 1.2 } : { duration: 0.15 }}
-              >
-                <button onClick={spin} className="action-button primary-button" type="button">
-                  <Play size={20} /> GIRA
+    <motion.div animate={flash ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }} className="page-shell">
+      <div className="orb orb-one" />
+      <div className="orb orb-two" />
+      <main className="app-frame">
+        <section className={`card ${screen === "menu" ? "menu-card" : ""}`} aria-label="Stocatz">
+          {screen === "menu" && (
+            <div className="menu-content">
+              {renderBrand()}
+              <div className="menu-actions">
+                <button className="menu-button primary-menu-button" onClick={handleMenuPlay} type="button">
+                  <Play size={24} /> <span>Gioca</span> <ChevronRight size={22} />
                 </button>
-              </motion.div>
-
-              <button onClick={reset} className="action-button reset-button" type="button">
-                <RotateCcw size={20} /> RESET
-              </button>
+                <button className="menu-button" onClick={() => setScreen("load")} type="button">
+                  <BookOpen size={24} /> <span>Carica</span> <ChevronRight size={22} />
+                </button>
+                <button className="menu-button" onClick={() => setScreen("settings")} type="button">
+                  <Settings size={24} /> <span>Impostazioni</span> <ChevronRight size={22} />
+                </button>
+              </div>
+              <p className="menu-note">Crea una materia, salva gli argomenti e fai girare la roulette.</p>
             </div>
+          )}
 
-            <div className="input-grid">
-              <div className="field">
-                <label className="field-label" htmlFor="pagina-iniziale">Pagina iniziale</label>
-                <input
-                  id="pagina-iniziale"
-                  value={min}
-                  onChange={(e) => setMin(e.target.value)}
-                  inputMode="numeric"
-                  className="text-input"
-                />
+          {screen === "game" && (
+            <>
+              <div className="card-header compact-header">
+                <button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button>
+                <button className="icon-button" onClick={() => setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))} type="button" aria-label={settings.soundEnabled ? "Disattiva audio" : "Attiva audio"}>
+                  {settings.soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                </button>
               </div>
 
-              <div className="field">
-                <label className="field-label" htmlFor="pagina-finale">Pagina finale</label>
-                <input
-                  id="pagina-finale"
-                  value={max}
-                  onChange={(e) => setMax(e.target.value)}
-                  inputMode="numeric"
-                  className="text-input"
-                />
-              </div>
-            </div>
-
-            <div className="switch-card">
-              <div className="switch-copy">
-                <span className="switch-title">Escludi numeri</span>
-                <span className="switch-subtitle">
-                  Se attivo, una pagina già uscita non verrà estratta di nuovo fino al reset.
-                </span>
+              <div className="game-heading">
+                <div>
+                  <span className="setup-kicker"><Sparkles size={15} /> Materia attiva</span>
+                  <h2>{subjectName}</h2>
+                  <p>{topics.length} argomenti caricati</p>
+                </div>
+                <button className="secondary-button" onClick={openSetup} type="button"><Plus size={18} /> Scegli argomenti</button>
               </div>
 
-              <button
-                type="button"
-                className={`switch ${removeAfter ? 'switch-on' : 'switch-off'}`}
-                onClick={() => setRemoveAfter((prev) => !prev)}
-                aria-pressed={removeAfter}
-                aria-label="Escludi numeri già usciti"
-              >
-                <span className="switch-thumb" />
-              </button>
+              <div className="card-content">
+                <div className="reel-viewport">
+                  <motion.div animate={focusDarken ? { opacity: [0, 0.42, 0.24] } : { opacity: 0 }} transition={{ duration: 0.5, ease: "easeOut" }} className="focus-overlay" />
+                  <motion.div animate={energyBurst ? { opacity: [0, 0.9, 0], scale: [0.7, 1.2, 1.55] } : { opacity: 0, scale: 0.8 }} transition={{ duration: 0.65, ease: "easeOut" }} className="energy-burst" />
+                  <motion.div animate={isSpinning ? { opacity: [0.28, 0.6, 0.28] } : energyBurst ? { opacity: [0.5, 1, 0.4] } : { opacity: 0.35 }} transition={{ repeat: isSpinning ? Infinity : 0, duration: 0.9, ease: "easeInOut" }} className="highlight-band" />
+                  <motion.div animate={isSuspense ? { opacity: [0.3, 1, 0.3] } : { opacity: 0.25 }} transition={{ repeat: isSuspense ? Infinity : 0, duration: 0.16, ease: "linear" }} className="center-line" />
+                  <div className="top-fade" />
+                  <div className="bottom-fade" />
+                  <div ref={reelRef} className="reel-track">
+                    {reelTopics.map((topic, i) => (
+                      <div key={`${topic}-${i}`} className="reel-item">
+                        <motion.span
+                          animate={flash && i === winnerDisplayIndex ? { scale: [1, 1.28, 1.12], filter: ["blur(0px)", "blur(2px)", "blur(0px)"] } : isSuspense && i === winnerDisplayIndex ? { opacity: [0.55, 1, 0.55], scale: [1, 1.05, 1] } : { scale: 1, opacity: 1 }}
+                          transition={{ duration: isSuspense && i === winnerDisplayIndex ? 0.16 : 0.35, repeat: isSuspense && i === winnerDisplayIndex ? Infinity : 0 }}
+                          className="reel-number reel-topic"
+                        >
+                          {topic}
+                        </motion.span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="result-card" aria-live="polite">
+                  <span className="result-label">Argomento estratto</span>
+                  <strong className={isSpinning ? "result-status" : undefined}>{isSpinning ? "Estrazione in corso…" : lastWinner ?? "—"}</strong>
+                  <small>{availableTopics.length} disponibili</small>
+                </div>
+
+                {gameError && <p className="error-message">{gameError}</p>}
+
+                <div className="button-grid">
+                  <motion.div
+                    className="grow-wrap"
+                    animate={showPulse ? { scale: [1, 1.05, 1], boxShadow: [`0 0 0px ${getGlow()}`, `0 0 30px ${getGlow()}`, `0 0 0px ${getGlow()}`] } : { scale: 1 }}
+                    whileHover={{ scale: gameError ? 1 : 1.04, boxShadow: gameError ? "none" : `0 0 26px ${getGlow()}`, filter: gameError ? "none" : "brightness(1.08)" }}
+                    whileTap={{ scale: gameError ? 1 : 0.98 }}
+                    transition={showPulse ? { repeat: Infinity, duration: 1.2 } : { duration: 0.15 }}
+                  >
+                    <button onClick={spin} disabled={!!gameError || isSpinning} className="action-button primary-button" type="button"><Play size={20} /> GIRA</button>
+                  </motion.div>
+                  <button onClick={reset} className="action-button reset-button" type="button"><RotateCcw size={20} /> RESET</button>
+                </div>
+
+                {history.length > 0 && (
+                  <div className="history-card">
+                    <span className="history-title">Cronologia</span>
+                    <div className="history-list history-topic-list">{history.map((topic, index) => <span key={`${topic}-${index}`}>{topic}</span>)}</div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {screen === "load" && (
+            <div className="panel-content">
+              <div className="panel-header"><button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button><h2>Scegli materia</h2></div>
+              {savedSubjects.length === 0 ? (
+                <div className="empty-state"><BookOpen size={42} /><h3>Nessuna materia salvata</h3><p>Crea la prima materia per iniziare a usare la roulette Stocatz.</p><button className="secondary-button" onClick={() => { setScreen("game"); openNewSubjectSetup(); }} type="button"><Plus size={18} /> Crea prima materia</button></div>
+              ) : (
+                <div className="subjects-list">
+                  {savedSubjects.map((subject) => (
+                    <article className="subject-card" key={subject.id}>
+                      <button onClick={() => { applyTopics(subject.name, subject.topics); setScreen("game"); }} type="button" className="subject-play">
+                        <span>{subject.name}</span><small>{subject.topics.length} argomenti</small>
+                      </button>
+                      <button className="delete-button" onClick={() => deleteSubject(subject.id)} type="button" aria-label={`Elimina ${subject.name}`}><Trash2 size={18} /></button>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
+          )}
+
+          {screen === "settings" && (
+            <div className="panel-content">
+              <div className="panel-header"><button className="ghost-button" onClick={() => setScreen("menu")} type="button"><Home size={18} /> Menu</button><h2>Impostazioni</h2></div>
+              <div className="settings-grid">
+                <SettingSwitch title="Escludi argomenti già usciti" subtitle="Evita ripetizioni fino al reset." value={settings.removeAfter} onChange={() => setSettings((prev) => ({ ...prev, removeAfter: !prev.removeAfter }))} />
+                <SettingSwitch title="Audio slot" subtitle="Attiva o disattiva il suono durante l’estrazione." value={settings.soundEnabled} onChange={() => setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))} />
+                <div className="setting-card"><div><span className="switch-title">Durata animazione</span><span className="switch-subtitle">Regola la suspense della roulette.</span></div><select className="select-input" value={settings.suspenseMs} onChange={(e) => setSettings((prev) => ({ ...prev, suspenseMs: Number(e.target.value) }))}><option value={3500}>Veloce</option><option value={5000}>Normale</option><option value={6500}>Lenta</option></select></div>
+                <div className="setting-card"><div><span className="switch-title">Cronologia</span><span className="switch-subtitle">Numero massimo di estrazioni visibili.</span></div><select className="select-input" value={settings.maxHistory} onChange={(e) => setSettings((prev) => ({ ...prev, maxHistory: Number(e.target.value) }))}><option value={6}>6</option><option value={12}>12</option><option value={20}>20</option></select></div>
+                <button className="setting-card action-setting" onClick={exportData} type="button"><Download size={20} /><div><span className="switch-title">Esporta materie</span><span className="switch-subtitle">Scarica un backup JSON delle materie salvate.</span></div></button>
+                <button className="setting-card action-setting danger-setting" onClick={() => { setSavedSubjects([]); localStorage.removeItem(SUBJECTS_KEY); }} type="button"><Trash2 size={20} /><div><span className="switch-title">Cancella materie salvate</span><span className="switch-subtitle">Rimuove tutte le materie dal dispositivo.</span></div></button>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {setupOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Scegli argomenti">
+          <div className="setup-modal">
+            <div className="modal-header"><div><span className="setup-kicker"><ListChecks size={15} /> Scegli argomenti</span><h2>{setupStep === "count" ? "Quanti argomenti?" : "Compila la materia"}</h2></div><button className="icon-button" onClick={() => setSetupOpen(false)} type="button" aria-label="Chiudi"><X size={20} /></button></div>
+
+            {setupStep === "count" ? (
+              <div className="modal-body compact-modal-body">
+                <label className="field"><span className="field-label">Numero argomenti</span><input value={topicCountInput} onChange={(e) => setTopicCountInput(e.target.value)} inputMode="numeric" className="text-input large-number-input" placeholder="Es. 12" /></label>
+                <p className="helper-text">Puoi creare una materia con massimo {MAX_TOPICS} argomenti. Ogni argomento avrà massimo {MAX_TOPIC_LENGTH} caratteri.</p>
+                {setupCountError && <p className="error-message">{setupCountError}</p>}
+                <button disabled={!!setupCountError} className="action-button primary-button" onClick={() => setSetupStep("topics")} type="button">Avanti <ChevronRight size={20} /></button>
+              </div>
+            ) : (
+              <div className="modal-body">
+                <label className="field"><span className="field-label">Nome materia</span><input value={draftSubjectName} onChange={(e) => setDraftSubjectName(e.target.value.slice(0, MAX_TOPIC_LENGTH))} maxLength={MAX_TOPIC_LENGTH} className="text-input" placeholder="Es. Psicologia" /></label>
+                <div className="topics-grid modal-topics-grid">
+                  {draftTopics.map((topic, index) => (
+                    <div className="field" key={index}>
+                      <label className="field-label" htmlFor={`draft-topic-${index}`}>Argomento {index + 1}</label>
+                      <input id={`draft-topic-${index}`} value={topic} onChange={(e) => updateDraftTopic(index, e.target.value)} maxLength={MAX_TOPIC_LENGTH} className="text-input topic-input" placeholder="Es. Freud" />
+                      <small className="char-count">{topic.length}/{MAX_TOPIC_LENGTH}</small>
+                    </div>
+                  ))}
+                </div>
+                {setupTopicsError && <p className="error-message">{setupTopicsError}</p>}
+                <div className="modal-actions"><button className="action-button reset-button" onClick={() => setSetupStep("count")} type="button">Indietro</button><button disabled={!!setupTopicsError} className="action-button primary-button" onClick={saveSubject} type="button"><Save size={20} /> Salva materia</button></div>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
     </motion.div>
+  );
+}
+
+function SettingSwitch({ title, subtitle, value, onChange }: { title: string; subtitle: string; value: boolean; onChange: () => void }) {
+  return (
+    <div className="setting-card">
+      <div><span className="switch-title">{title}</span><span className="switch-subtitle">{subtitle}</span></div>
+      <button type="button" className={`switch ${value ? "switch-on" : "switch-off"}`} onClick={onChange} aria-pressed={value}><span className="switch-thumb" /></button>
+    </div>
   );
 }
