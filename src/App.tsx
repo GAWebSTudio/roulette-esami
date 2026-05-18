@@ -207,6 +207,61 @@ function playRevealHit() {
   }
 }
 
+
+let rouletteAudioContext: AudioContext | null = null;
+let lastRouletteTickAt = 0;
+
+function getRouletteAudioContext(): AudioContext | null {
+  try {
+    const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return null;
+    if (!rouletteAudioContext || rouletteAudioContext.state === "closed") {
+      rouletteAudioContext = new AudioContextConstructor();
+    }
+    if (rouletteAudioContext.state === "suspended") {
+      void rouletteAudioContext.resume().catch(() => undefined);
+    }
+    return rouletteAudioContext;
+  } catch {
+    return null;
+  }
+}
+
+function playRouletteTick(intensity = 1) {
+  try {
+    const now = performance.now();
+    if (now - lastRouletteTickAt < 28) return;
+    lastRouletteTickAt = now;
+
+    const audioContext = getRouletteAudioContext();
+    if (!audioContext) return;
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const start = audioContext.currentTime;
+    const duration = 0.045;
+    const safeIntensity = Math.max(0.35, Math.min(1, intensity));
+
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(980 + safeIntensity * 360, start);
+    oscillator.frequency.exponentialRampToValueAtTime(420, start + duration);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.055 + safeIntensity * 0.08, start + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.01);
+  } catch {
+    // Tick non disponibile: l'animazione resta comunque fluida.
+  }
+}
+
+function easeOutQuint(progress: number) {
+  return 1 - Math.pow(1 - progress, 5);
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("menu");
   const [setupOpen, setSetupOpen] = useState(false);
@@ -235,9 +290,10 @@ export default function App() {
   const [focusDarken, setFocusDarken] = useState(false);
 
   const idleTimerRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const reelRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<number[]>([]);
+  const spinFrameRef = useRef<number | null>(null);
+  const lastTickIndexRef = useRef<number | null>(null);
 
   const ITEM_HEIGHT_FALLBACK = 192;
   const EXTRA_LOOPS = 4;
@@ -280,14 +336,13 @@ export default function App() {
 
   useEffect(() => {
     registerServiceWorker();
-    audioRef.current = new Audio("/slot.mp3");
     setSavedSubjects(loadSavedSubjects());
     setSettings(loadSettings());
 
     return () => {
       timersRef.current.forEach((timer) => window.clearTimeout(timer));
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
-      audioRef.current?.pause();
+      if (spinFrameRef.current !== null) window.cancelAnimationFrame(spinFrameRef.current);
     };
   }, []);
 
@@ -328,6 +383,7 @@ export default function App() {
     }
     return () => {
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      if (spinFrameRef.current !== null) window.cancelAnimationFrame(spinFrameRef.current);
     };
   }, [isSpinning, gameError, screen]);
 
@@ -335,6 +391,11 @@ export default function App() {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
     if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+    if (spinFrameRef.current !== null) {
+      window.cancelAnimationFrame(spinFrameRef.current);
+      spinFrameRef.current = null;
+    }
+    lastTickIndexRef.current = null;
   };
 
 
@@ -403,9 +464,7 @@ export default function App() {
     setEnergyBurst(false);
     setFocusDarken(false);
     setVoiceCue(null);
-    audioRef.current?.pause();
     window.speechSynthesis?.cancel();
-    if (audioRef.current) audioRef.current.currentTime = 0;
     if (reelRef.current) {
       reelRef.current.style.transition = "none";
       reelRef.current.style.transform = "translate3d(0,0,0)";
@@ -481,9 +540,8 @@ export default function App() {
     setVoiceCue(null);
     setLastWinner(null);
 
-    if (settings.soundEnabled && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      void audioRef.current.play().catch(() => undefined);
+    if (settings.soundEnabled) {
+      void getRouletteAudioContext()?.resume().catch(() => undefined);
     }
 
     const base = [...availableTopics];
@@ -506,12 +564,33 @@ export default function App() {
       reel.style.transition = "none";
       reel.style.transform = "translate3d(0,0,0)";
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          reel.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.12,0.74,0.18,1)`;
+      const spinStartedAt = performance.now();
+      lastTickIndexRef.current = 0;
+
+      const animateSpin = (now: number) => {
+        const rawProgress = Math.min(1, (now - spinStartedAt) / Math.max(1, SPIN_DURATION));
+        const easedProgress = easeOutQuint(rawProgress);
+        const currentY = finalY * easedProgress;
+
+        reel.style.transition = "none";
+        reel.style.transform = `translate3d(0,-${currentY}px,0)`;
+
+        const currentTickIndex = Math.floor(currentY / itemHeight);
+        if (settings.soundEnabled && currentTickIndex !== lastTickIndexRef.current) {
+          const velocityIntensity = 1 - rawProgress * 0.55;
+          playRouletteTick(velocityIntensity);
+          lastTickIndexRef.current = currentTickIndex;
+        }
+
+        if (rawProgress < 1) {
+          spinFrameRef.current = window.requestAnimationFrame(animateSpin);
+        } else {
+          spinFrameRef.current = null;
           reel.style.transform = `translate3d(0,-${finalY}px,0)`;
-        });
-      });
+        }
+      };
+
+      spinFrameRef.current = window.requestAnimationFrame(animateSpin);
 
       const suspenseTimer = window.setTimeout(() => setIsSuspense(true), Math.max(0, SPIN_DURATION - SUSPENSE_DURATION));
       const overshootTimer = window.setTimeout(() => {
@@ -543,7 +622,6 @@ export default function App() {
         reel.style.transform = `translate3d(0,-${finalY}px,0)`;
       }
 
-      audioRef.current?.pause();
       setIsSpinning(false);
       setLastWinner(winner);
       setFlash(true);
