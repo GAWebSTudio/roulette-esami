@@ -40,8 +40,8 @@ type AppSettings = {
 const MAX_TOPICS = 50;
 const MAX_TOPIC_LENGTH = 25;
 const DEFAULT_TOPIC_COUNT = 6;
-const SUBJECTS_KEY = "stocatz_subjects_v1";
-const SETTINGS_KEY = "stocatz_settings_v1";
+const SUBJECTS_KEY = "stocastico_subjects_v1";
+const SETTINGS_KEY = "stocastico_settings_v1";
 const DEFAULT_SETTINGS: AppSettings = {
   removeAfter: true,
   soundEnabled: true,
@@ -363,7 +363,7 @@ export default function App() {
       { delay: 0, cue: "3", tone: 1 },
       { delay: 680, cue: "2", tone: 2 },
       { delay: 1360, cue: "1", tone: 3 },
-      { delay: 2040, cue: "STOCATZ", reveal: true },
+      { delay: 2040, cue: "STOCASTICO", reveal: true },
       { delay: 2800, cue: "Pausa..." },
       { delay: 3400, cue: null, speak: true },
     ];
@@ -579,7 +579,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "stocatz-materie.json";
+    a.download = "stocastico-materie.json";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -593,9 +593,9 @@ export default function App() {
         transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
         className="title"
       >
-        Stocatz
+        Stocastico
       </motion.h1>
-      <p className="subtitle">Selettore stocastico per interrogazioni ed esami</p>
+      <p className="subtitle">Roulette stocastica per interrogazioni ed esami</p>
     </div>
   );
 
@@ -604,7 +604,7 @@ export default function App() {
       <div className="orb orb-one" />
       <div className="orb orb-two" />
       <main className="app-frame">
-        <section className={`card ${screen === "menu" ? "menu-card" : ""}`} aria-label="Stocatz">
+        <section className={`card ${screen === "menu" ? "menu-card" : ""}`} aria-label="Stocastico">
           {screen === "menu" && (
             <div className="menu-content">
               {renderBrand()}
@@ -714,7 +714,7 @@ export default function App() {
   <h2>Scegli materia</h2>
 </div>
               {savedSubjects.length === 0 ? (
-                <div className="empty-state"><BookOpen size={42} /><h3>Nessuna materia salvata</h3><p>Crea la prima materia per iniziare a usare la roulette Stocatz.</p><button className="secondary-button" onClick={() => { setScreen("game"); openNewSubjectSetup(); }} type="button"><Plus size={18} /> Crea prima materia</button></div>
+                <div className="empty-state"><BookOpen size={42} /><h3>Nessuna materia salvata</h3><p>Crea la prima materia per iniziare a usare la roulette Stocastico.</p><button className="secondary-button" onClick={() => { setScreen("game"); openNewSubjectSetup(); }} type="button"><Plus size={18} /> Crea prima materia</button></div>
               ) : (
                 <div className="subjects-list">
                   {savedSubjects.map((subject) => (
