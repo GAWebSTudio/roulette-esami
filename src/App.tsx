@@ -383,7 +383,6 @@ export default function App() {
     }
     return () => {
       if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
-      if (spinFrameRef.current !== null) window.cancelAnimationFrame(spinFrameRef.current);
     };
   }, [isSpinning, gameError, screen]);
 
