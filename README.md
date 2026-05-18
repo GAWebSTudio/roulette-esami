@@ -1,6 +1,6 @@
-# Stocatz
+# Stocastico
 
-Selettore stocastico per interrogazioni ed esami.
+Roulette stocastica per interrogazioni ed esami.
 
 ## Avvio locale
 
