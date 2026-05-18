@@ -1,11 +1,11 @@
 {
-  "name": "Stocatz",
-  "short_name": "Stocatz",
+  "name": "Stocastico",
+  "short_name": "Stocastico",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0B132B",
   "theme_color": "#00B4B3",
-  "description": "Selettore stocastico per interrogazioni ed esami.",
+  "description": "Roulette stocastica per interrogazioni ed esami.",
   "icons": [
     {
       "src": "/icon-192.png",
