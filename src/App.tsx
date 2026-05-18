@@ -208,66 +208,13 @@ function playRevealHit() {
 }
 
 
-let rouletteAudioContext: AudioContext | null = null;
-let lastRouletteTickAt = 0;
-
-function getRouletteAudioContext(): AudioContext | null {
-  try {
-    const AudioContextConstructor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextConstructor) return null;
-    if (!rouletteAudioContext || rouletteAudioContext.state === "closed") {
-      rouletteAudioContext = new AudioContextConstructor();
-    }
-    if (rouletteAudioContext.state === "suspended") {
-      void rouletteAudioContext.resume().catch(() => undefined);
-    }
-    return rouletteAudioContext;
-  } catch {
-    return null;
-  }
-}
-
-function playRouletteTick(intensity = 1) {
-  try {
-    const now = performance.now();
-    if (now - lastRouletteTickAt < 28) return;
-    lastRouletteTickAt = now;
-
-    const audioContext = getRouletteAudioContext();
-    if (!audioContext) return;
-
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    const start = audioContext.currentTime;
-    const duration = 0.045;
-    const safeIntensity = Math.max(0.35, Math.min(1, intensity));
-
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(980 + safeIntensity * 360, start);
-    oscillator.frequency.exponentialRampToValueAtTime(420, start + duration);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.055 + safeIntensity * 0.08, start + 0.006);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(start);
-    oscillator.stop(start + duration + 0.01);
-  } catch {
-    // Tick non disponibile: l'animazione resta comunque fluida.
-  }
-}
-
 function easeOutQuint(progress: number) {
   return 1 - Math.pow(1 - progress, 5);
 }
 
 export default function App() {
-  const tickAudioRef = useRef<HTMLAudioElement | null>(null);
-const finalAudioRef = useRef<HTMLAudioElement | null>(null);
-const lastSectorRef = useRef<number>(-1);
-
-const [screen, setScreen] = useState<Screen>("menu");
+  const spinAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [screen, setScreen] = useState<Screen>("menu");
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("count");
   const [topicCountInput, setTopicCountInput] = useState(String(DEFAULT_TOPIC_COUNT));
@@ -339,22 +286,6 @@ const [screen, setScreen] = useState<Screen>("menu");
   }, [topics.length, availableTopics.length]);
 
   
-const playTick = () => {
-  try {
-    if (!tickAudioRef.current) return;
-    tickAudioRef.current.currentTime = 0;
-    tickAudioRef.current.play().catch(() => {});
-  } catch {}
-};
-
-const playFinal = () => {
-  try {
-    if (!finalAudioRef.current) return;
-    finalAudioRef.current.currentTime = 0;
-    finalAudioRef.current.play().catch(() => {});
-  } catch {}
-};
-
 useEffect(() => {
     registerServiceWorker();
     setSavedSubjects(loadSavedSubjects());
@@ -391,6 +322,20 @@ useEffect(() => {
   }, [settings]);
 
   useEffect(() => {
+    const audio = new Audio("/slot.mp3");
+    audio.preload = "auto";
+    audio.volume = 0.65;
+    spinAudioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      spinAudioRef.current = null;
+    };
+  }, []);
+
+
+  useEffect(() => {
     if (Number.isInteger(parsedTopicCount) && parsedTopicCount >= 1 && parsedTopicCount <= MAX_TOPICS) {
       setDraftTopics((prev) => createTopics(parsedTopicCount, prev));
     }
@@ -416,6 +361,7 @@ useEffect(() => {
       spinFrameRef.current = null;
     }
     lastTickIndexRef.current = null;
+    stopSpinMusic();
   };
 
 
@@ -549,6 +495,29 @@ useEffect(() => {
     return lastWinner.length <= 8 ? "rgba(242,193,78,0.85)" : "rgba(34,211,197,0.85)";
   };
 
+  const startSpinMusic = () => {
+    if (!settings.soundEnabled || !spinAudioRef.current) return;
+
+    try {
+      spinAudioRef.current.pause();
+      spinAudioRef.current.currentTime = 0;
+      spinAudioRef.current.play().catch(() => undefined);
+    } catch {
+      // Audio non disponibile: la roulette continua senza blocchi.
+    }
+  };
+
+  const stopSpinMusic = () => {
+    if (!spinAudioRef.current) return;
+
+    try {
+      spinAudioRef.current.pause();
+      spinAudioRef.current.currentTime = 0;
+    } catch {
+      // Audio non disponibile.
+    }
+  };
+
   const spin = () => {
     if (!availableTopics.length || isSpinning || gameError) return;
 
@@ -560,9 +529,7 @@ useEffect(() => {
     setVoiceCue(null);
     setLastWinner(null);
 
-    if (settings.soundEnabled) {
-      void getRouletteAudioContext()?.resume().catch(() => undefined);
-    }
+    startSpinMusic();
 
     const base = [...availableTopics];
     const repeated = Array.from({ length: EXTRA_LOOPS }, () => base).flat();
@@ -595,12 +562,6 @@ useEffect(() => {
         reel.style.transition = "none";
         reel.style.transform = `translate3d(0,-${currentY}px,0)`;
 
-        const currentTickIndex = Math.floor(currentY / itemHeight);
-        if (settings.soundEnabled && currentTickIndex !== lastTickIndexRef.current) {
-          const velocityIntensity = 1 - rawProgress * 0.55;
-          playRouletteTick(velocityIntensity);
-          lastTickIndexRef.current = currentTickIndex;
-        }
 
         if (rawProgress < 1) {
           spinFrameRef.current = window.requestAnimationFrame(animateSpin);
@@ -642,6 +603,7 @@ useEffect(() => {
         reel.style.transform = `translate3d(0,-${finalY}px,0)`;
       }
 
+      stopSpinMusic();
       setIsSpinning(false);
       setLastWinner(winner);
       setFlash(true);
@@ -895,33 +857,3 @@ function SettingSwitch({ title, subtitle, value, onChange }: { title: string; su
     </div>
   );
 }
-
-
-useEffect(() => {
-  if (!isSpinning) {
-    playFinal();
-    return;
-  }
-
-  let frameId: number;
-
-  const observe = () => {
-    try {
-      const sectorAngle = 360 / Math.max(topics.length, 1);
-      const normalized = ((rotation % 360) + 360) % 360;
-      const currentSector = Math.floor(normalized / sectorAngle);
-
-      if (currentSector !== lastSectorRef.current) {
-        playTick();
-        lastSectorRef.current = currentSector;
-      }
-    } catch {}
-
-    frameId = requestAnimationFrame(observe);
-  };
-
-  frameId = requestAnimationFrame(observe);
-
-  return () => cancelAnimationFrame(frameId);
-}, [isSpinning, rotation, topics.length]);
-
