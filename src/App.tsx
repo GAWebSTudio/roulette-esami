@@ -263,7 +263,11 @@ function easeOutQuint(progress: number) {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("menu");
+  const tickAudioRef = useRef<HTMLAudioElement | null>(null);
+const finalAudioRef = useRef<HTMLAudioElement | null>(null);
+const lastSectorRef = useRef<number>(-1);
+
+const [screen, setScreen] = useState<Screen>("menu");
   const [setupOpen, setSetupOpen] = useState(false);
   const [setupStep, setSetupStep] = useState<SetupStep>("count");
   const [topicCountInput, setTopicCountInput] = useState(String(DEFAULT_TOPIC_COUNT));
@@ -334,7 +338,24 @@ export default function App() {
     return "";
   }, [topics.length, availableTopics.length]);
 
-  useEffect(() => {
+  
+const playTick = () => {
+  try {
+    if (!tickAudioRef.current) return;
+    tickAudioRef.current.currentTime = 0;
+    tickAudioRef.current.play().catch(() => {});
+  } catch {}
+};
+
+const playFinal = () => {
+  try {
+    if (!finalAudioRef.current) return;
+    finalAudioRef.current.currentTime = 0;
+    finalAudioRef.current.play().catch(() => {});
+  } catch {}
+};
+
+useEffect(() => {
     registerServiceWorker();
     setSavedSubjects(loadSavedSubjects());
     setSettings(loadSettings());
@@ -874,3 +895,33 @@ function SettingSwitch({ title, subtitle, value, onChange }: { title: string; su
     </div>
   );
 }
+
+
+useEffect(() => {
+  if (!isSpinning) {
+    playFinal();
+    return;
+  }
+
+  let frameId: number;
+
+  const observe = () => {
+    try {
+      const sectorAngle = 360 / Math.max(topics.length, 1);
+      const normalized = ((rotation % 360) + 360) % 360;
+      const currentSector = Math.floor(normalized / sectorAngle);
+
+      if (currentSector !== lastSectorRef.current) {
+        playTick();
+        lastSectorRef.current = currentSector;
+      }
+    } catch {}
+
+    frameId = requestAnimationFrame(observe);
+  };
+
+  frameId = requestAnimationFrame(observe);
+
+  return () => cancelAnimationFrame(frameId);
+}, [isSpinning, rotation, topics.length]);
+
