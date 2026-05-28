@@ -38,7 +38,7 @@ type AppSettings = {
 };
 
 const MAX_TOPICS = 50;
-const MAX_TOPIC_LENGTH = 25;
+const MAX_TOPIC_LENGTH = 50;
 const DEFAULT_TOPIC_COUNT = 6;
 const SUBJECTS_KEY = "stocastico_subjects_v1";
 const SETTINGS_KEY = "stocastico_settings_v1";
