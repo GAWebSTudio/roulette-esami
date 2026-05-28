@@ -1124,3 +1124,76 @@ button, input { font: inherit; }
     width: 100%;
   }
 }
+/* FIX DEFINITIVO TITOLI LUNGHI ROULETTE */
+.reel-viewport {
+  height: 150px !important;
+  overflow: hidden !important;
+}
+
+.reel-item {
+  height: 150px !important;
+  min-height: 150px !important;
+  max-height: 150px !important;
+  padding: 12px 28px !important;
+  overflow: hidden !important;
+}
+
+.reel-number,
+.reel-topic {
+  width: 100% !important;
+  max-width: 92% !important;
+
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+
+  font-size: clamp(1.35rem, 2.8vw, 2.8rem) !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.035em !important;
+  text-align: center !important;
+
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.highlight-band {
+  height: 72px !important;
+}
+
+.top-fade,
+.bottom-fade {
+  height: 34px !important;
+}
+
+.result-card strong {
+  font-size: clamp(1.15rem, 2.8vw, 2rem) !important;
+  line-height: 1.12 !important;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .reel-viewport {
+    height: 135px !important;
+  }
+
+  .reel-item {
+    height: 135px !important;
+    min-height: 135px !important;
+    max-height: 135px !important;
+    padding: 10px 16px !important;
+  }
+
+  .reel-number,
+  .reel-topic {
+    font-size: clamp(1.15rem, 7vw, 2.1rem) !important;
+    -webkit-line-clamp: 2 !important;
+  }
+
+  .highlight-band {
+    height: 64px !important;
+  }
+}
