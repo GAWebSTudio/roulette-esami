@@ -192,7 +192,7 @@ button, input { font: inherit; }
 
 .reel-viewport {
   position: relative;
-  height: 192px;
+  height: 220px;
   overflow: hidden;
   border-radius: 24px;
   border: 2px solid rgba(34, 211, 197, 0.72);
@@ -263,18 +263,41 @@ button, input { font: inherit; }
 }
 
 .reel-item {
+  min-height: 192px;
   height: 192px;
+
   display: flex;
   align-items: center;
   justify-content: center;
+
+  padding: 18px;
+  overflow: hidden;
 }
 
 .reel-number {
-  font-size: clamp(3.8rem, 14vw, 6rem);
-  line-height: 1;
+  width: 100%;
+  max-width: 90%;
+
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  overflow: hidden;
+
+  text-align: center;
+  overflow-wrap: break-word;
+  word-break: break-word;
+
+  font-size: clamp(2rem, 5vw, 4.8rem);
+  line-height: 1.02;
+  letter-spacing: -0.05em;
   font-weight: 900;
+
   color: var(--cloud-50);
-  text-shadow: 0 0 24px rgba(34, 211, 197, 0.38), 0 0 12px rgba(242, 193, 78, 0.28);
+
+  text-shadow:
+    0 0 24px rgba(34, 211, 197, 0.38),
+    0 0 12px rgba(242, 193, 78, 0.28);
 }
 
 .result-card {
@@ -469,7 +492,7 @@ button, input { font: inherit; }
   .card-content { padding: 8px 16px 16px; gap: 16px; }
   .logo-mark { width: 76px; height: 76px; border-radius: 20px; }
   .subtitle { letter-spacing: 0.1em; }
-  .reel-viewport, .reel-item { height: 176px; }
+  .reel-viewport, .reel-item { height: 210px; }
   .highlight-band { inset-inline: 16px; height: 82px; }
   .center-line { inset-inline: 20px; }
   .button-grid, .input-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -559,16 +582,25 @@ button, input { font: inherit; }
 }
 
 .reel-topic {
-  display: inline-flex;
+  width: 100%;
+
+  display: flex;
   align-items: center;
   justify-content: center;
-  max-width: min(86vw, 860px);
-  min-height: 84px;
-  padding: 0 28px;
+
+  padding: 0 12px;
+
   text-align: center;
-  overflow-wrap: anywhere;
-  font-size: clamp(2.1rem, 6vw, 4.8rem);
+
+  overflow-wrap: break-word;
+  word-break: break-word;
+
+  font-size: clamp(1.8rem, 4vw, 4rem);
+  line-height: 1.05;
   letter-spacing: -0.04em;
+
+  max-height: 2.1em;
+  overflow: hidden;
 }
 
 .history-topic-list span {
