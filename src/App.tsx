@@ -4,6 +4,7 @@ import {
   BookOpen,
   ChevronRight,
   Download,
+  Upload,
   Home,
   ListChecks,
   Play,
@@ -643,6 +644,54 @@ useEffect(() => {
     a.click();
     URL.revokeObjectURL(url);
   };
+    const importData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      const importedSubjects = Array.isArray(data)
+        ? data
+        : Array.isArray(data.savedSubjects)
+          ? data.savedSubjects
+          : Array.isArray(data.subjects)
+            ? data.subjects
+            : [];
+
+      const cleanedSubjects: SavedSubject[] = importedSubjects
+        .map((item: any) => {
+          const name = String(item.name || "Materia senza nome").trim().slice(0, MAX_TOPIC_LENGTH);
+
+          const topics = Array.isArray(item.topics)
+            ? item.topics
+                .map((topic: any) => String(topic).trim().slice(0, MAX_TOPIC_LENGTH))
+                .filter(Boolean)
+            : [];
+
+          return {
+            id: makeId(),
+            name,
+            topics,
+            createdAt: new Date().toISOString(),
+          };
+        })
+        .filter((subject: SavedSubject) => subject.name && subject.topics.length > 0);
+
+      if (cleanedSubjects.length === 0) {
+        alert("Nessuna materia valida trovata nel file JSON.");
+        return;
+      }
+
+      setSavedSubjects((prev) => [...cleanedSubjects, ...prev]);
+      alert("Materie importate correttamente.");
+    } catch {
+      alert("File JSON non valido.");
+    } finally {
+      event.target.value = "";
+    }
+  };
 
   const renderBrand = () => (
     <div className="brand-block">
@@ -807,6 +856,19 @@ useEffect(() => {
                 <div className="setting-card"><div><span className="switch-title">Durata animazione</span><span className="switch-subtitle">Regola la suspense della roulette.</span></div><select className="select-input" value={settings.suspenseMs} onChange={(e) => setSettings((prev) => ({ ...prev, suspenseMs: Number(e.target.value) }))}><option value={3500}>Veloce</option><option value={5000}>Normale</option><option value={6500}>Lenta</option></select></div>
                 <div className="setting-card"><div><span className="switch-title">Cronologia</span><span className="switch-subtitle">Numero massimo di estrazioni visibili.</span></div><select className="select-input" value={settings.maxHistory} onChange={(e) => setSettings((prev) => ({ ...prev, maxHistory: Number(e.target.value) }))}><option value={6}>6</option><option value={12}>12</option><option value={20}>20</option></select></div>
                 <button className="setting-card action-setting" onClick={exportData} type="button"><Download size={20} /><div><span className="switch-title">Esporta materie</span><span className="switch-subtitle">Scarica un backup JSON delle materie salvate.</span></div></button>
+                <label className="setting-card action-setting">
+  <Upload size={20} />
+  <div>
+    <span className="switch-title">Importa materie</span>
+    <span className="switch-subtitle">Carica un file JSON con materie e argomenti.</span>
+  </div>
+  <input
+    type="file"
+    accept="application/json,.json"
+    onChange={importData}
+    style={{ display: "none" }}
+  />
+</label>
                 <button className="setting-card action-setting danger-setting" onClick={() => { setSavedSubjects([]); localStorage.removeItem(SUBJECTS_KEY); }} type="button"><Trash2 size={20} /><div><span className="switch-title">Cancella materie salvate</span><span className="switch-subtitle">Rimuove tutte le materie dal dispositivo.</span></div></button>
               </div>
             </div>
