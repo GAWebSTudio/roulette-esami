@@ -192,7 +192,7 @@ button, input { font: inherit; }
 
 .reel-viewport {
   position: relative;
-  height: 220px;
+  height: 192px;
   overflow: hidden;
   border-radius: 24px;
   border: 2px solid rgba(34, 211, 197, 0.72);
@@ -263,34 +263,28 @@ button, input { font: inherit; }
 }
 
 .reel-item {
-  min-height: 192px;
   height: 192px;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
-  padding: 18px;
-  overflow: hidden;
 }
 
 .reel-number {
   width: 100%;
-  max-width: 90%;
+  max-width: 92%;
 
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  display: block;
 
   overflow: hidden;
 
   text-align: center;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  text-overflow: ellipsis;
 
-  font-size: clamp(2rem, 5vw, 4.8rem);
-  line-height: 1.02;
-  letter-spacing: -0.05em;
+  white-space: normal;
+
+  font-size: clamp(1.6rem, 3.6vw, 3.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
   font-weight: 900;
 
   color: var(--cloud-50);
@@ -492,7 +486,7 @@ button, input { font: inherit; }
   .card-content { padding: 8px 16px 16px; gap: 16px; }
   .logo-mark { width: 76px; height: 76px; border-radius: 20px; }
   .subtitle { letter-spacing: 0.1em; }
-  .reel-viewport, .reel-item { height: 210px; }
+  .reel-viewport, .reel-item { height: 176px; }
   .highlight-band { inset-inline: 16px; height: 82px; }
   .center-line { inset-inline: 20px; }
   .button-grid, .input-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -583,24 +577,25 @@ button, input { font: inherit; }
 
 .reel-topic {
   width: 100%;
+  max-width: 92%;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
 
   padding: 0 12px;
 
   text-align: center;
 
+  overflow: hidden;
+  text-overflow: ellipsis;
+
   overflow-wrap: break-word;
   word-break: break-word;
 
-  font-size: clamp(1.8rem, 4vw, 4rem);
-  line-height: 1.05;
+  font-size: clamp(1.6rem, 3.6vw, 3.2rem);
+  line-height: 1.08;
   letter-spacing: -0.04em;
 
-  max-height: 2.1em;
-  overflow: hidden;
+  max-height: 2.2em;
 }
 
 .history-topic-list span {
@@ -616,7 +611,11 @@ button, input { font: inherit; }
   .setup-heading { flex-direction: column; }
   .topic-count-field { max-width: none; }
   .topics-grid { grid-template-columns: 1fr; max-height: 360px; }
-  .reel-topic { font-size: clamp(1.65rem, 10vw, 3rem); padding-inline: 18px; }
+  .reel-topic {
+    font-size: clamp(1.35rem, 7vw, 2.4rem);
+    padding-inline: 12px;
+    max-height: 2.25em;
+  }
 }
 
 /* Stocastico multi-screen app */
@@ -1077,7 +1076,7 @@ button, input { font: inherit; }
   }
 }
 
-/* Fix visibilità: tasto nuova materia sempre presente nella schermata Scegli materia */
+/* Fix visibilitÃ : tasto nuova materia sempre presente nella schermata Scegli materia */
 .subject-select-header {
   display: grid;
   grid-template-columns: auto 1fr auto;
