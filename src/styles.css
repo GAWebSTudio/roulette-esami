@@ -1196,4 +1196,77 @@ button, input { font: inherit; }
   .highlight-band {
     height: 64px !important;
   }
+  /* FIX DEFINITIVO ROULETTE TESTI LUNGHI */
+.reel-viewport {
+  height: 190px !important;
+  overflow: hidden !important;
 }
+
+.reel-item {
+  height: 190px !important;
+  min-height: 190px !important;
+  max-height: 190px !important;
+  padding: 18px 32px !important;
+  overflow: hidden !important;
+}
+
+.reel-number,
+.reel-topic {
+  width: 100% !important;
+  max-width: 94% !important;
+
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 3 !important;
+
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+
+  font-size: clamp(1.2rem, 2.7vw, 2.65rem) !important;
+  line-height: 1.12 !important;
+  letter-spacing: -0.03em !important;
+  text-align: center !important;
+
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+.highlight-band {
+  height: 96px !important;
+}
+
+.top-fade,
+.bottom-fade {
+  height: 26px !important;
+}
+
+.result-card strong {
+  font-size: clamp(1.05rem, 2.5vw, 1.85rem) !important;
+  line-height: 1.12 !important;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .reel-viewport {
+    height: 170px !important;
+  }
+
+  .reel-item {
+    height: 170px !important;
+    min-height: 170px !important;
+    max-height: 170px !important;
+    padding: 12px 18px !important;
+  }
+
+  .reel-number,
+  .reel-topic {
+    font-size: clamp(1rem, 6vw, 1.85rem) !important;
+    -webkit-line-clamp: 3 !important;
+  }
+
+  .highlight-band {
+    height: 86px !important;
+  }
+}
+
